@@ -41,66 +41,61 @@ void drawValue(int csPin, const char* label, float value, int x, int y, uint16_t
     sprintf(buffer, "%s %.2f", label, value);
     
     if (largeFont) {
-        tft.setTextSize(4); // Larger font for SOC, A, VoltT (24x32px)
+        tft.setTextSize(3); // Larger font for SOC, A, VoltT (24x32px)
     } else {
-        tft.setTextSize(1.5); // Smaller font for grids (6x8px)
+        tft.setTextSize(2); // Smaller font for grids (6x8px)
     }
     tft.drawString(buffer, x, y);
     tft.endWrite();
     digitalWrite(csPin, HIGH);
 }
 
-// Update Display 0 (Vcell1-6, single centered column)
+// Update Display 0 (Vcell1-6, custom X, Y coordinates)
 void updateDisplay0() {
     digitalWrite(CS_PINS[0], LOW);
     tft.startWrite();
     tft.fillScreen(TFT_BLACK);
-    for (int i = 0; i < 6; i++) {
-        int x = WIDTH / 2; // Center of screen (120px)
-        int y = i * 40 + 20; // 6 rows, 40px apart, offset to fit
-        char label[8];
-        sprintf(label, "VCell%d", i + 1);
-        drawValue(CS_PINS[0], label, myData.vcell[i], x, y, TFT_WHITE);
-    }
+    // Define your custom X, Y coordinates here
+    drawValue(CS_PINS[0], "VCell1", myData.vcell[0], 120, 20+10, TFT_WHITE);  // Example: top center
+    drawValue(CS_PINS[0], "VCell2", myData.vcell[1], 120, 40+10+15, TFT_WHITE);
+    drawValue(CS_PINS[0], "VCell3", myData.vcell[2], 120, 60+10+30, TFT_WHITE);
+    drawValue(CS_PINS[0], "VCell4", myData.vcell[3], 120, 80+10+45, TFT_WHITE);
+    drawValue(CS_PINS[0], "VCell5", myData.vcell[4], 120, 100+10+60, TFT_WHITE);
+    drawValue(CS_PINS[0], "VCell6", myData.vcell[5], 120, 120+10+75, TFT_WHITE);
     tft.endWrite();
     digitalWrite(CS_PINS[0], HIGH);
 }
 
-// Update Display 1 (Vcell7-12, single centered column)
+// Update Display 1 (Vcell7-12, custom X, Y coordinates)
 void updateDisplay1() {
     digitalWrite(CS_PINS[1], LOW);
     tft.startWrite();
     tft.fillScreen(TFT_BLACK);
-    for (int i = 0; i < 6; i++) {
-        int x = WIDTH / 2; // Center of screen (120px)
-        int y = i * 40 + 20; // 6 rows, 40px apart
-        char label[8];
-        sprintf(label, "VCell%d", i + 7);
-        drawValue(CS_PINS[1], label, myData.vcell[i + 6], x, y, TFT_WHITE);
-    }
+    // Define your custom X, Y coordinates here
+    drawValue(CS_PINS[1], "VCell7", myData.vcell[6], 120, 20+10, TFT_WHITE);  // Example: top center
+    drawValue(CS_PINS[1], "VCell8", myData.vcell[7], 120, 40+10+15, TFT_WHITE);
+    drawValue(CS_PINS[1], "VCell9", myData.vcell[8], 120, 60+10+30, TFT_WHITE);
+    drawValue(CS_PINS[1], "VCell10", myData.vcell[9], 120, 80+10+45, TFT_WHITE);
+    drawValue(CS_PINS[1], "VCell11", myData.vcell[10], 120, 100+10+60, TFT_WHITE);
+    drawValue(CS_PINS[1], "VCell12", myData.vcell[11], 120, 120+10+75, TFT_WHITE);
     tft.endWrite();
     digitalWrite(CS_PINS[1], HIGH);
 }
 
-// Update Display 2 (Vcell13-16, T1-T4, single centered column)
+// Update Display 2 (Vcell13-16, T1-T4, custom X, Y coordinates)
 void updateDisplay2() {
     digitalWrite(CS_PINS[2], LOW);
     tft.startWrite();
     tft.fillScreen(TFT_BLACK);
-    for (int i = 0; i < 4; i++) {
-        int x = WIDTH / 2; // Center of screen (120px)
-        int y = i * 30 + 20; // 8 rows total, 30px apart
-        char label[8];
-        sprintf(label, "VCell%d", i + 13);
-        drawValue(CS_PINS[2], label, myData.vcell[i + 12], x, y, TFT_WHITE);
-    }
-    for (int i = 0; i < 4; i++) {
-        int x = WIDTH / 2; // Center of screen (120px)
-        int y = (i + 4) * 30 + 20; // Offset by 4 rows
-        char label[4];
-        sprintf(label, "Temp%d", i + 1);
-        drawValue(CS_PINS[2], label, myData.t[i], x, y, TFT_WHITE);
-    }
+    // Define your custom X, Y coordinates here
+    drawValue(CS_PINS[2], "VCell13", myData.vcell[12], 120, 20+10, TFT_WHITE);  // Example: top center
+    drawValue(CS_PINS[2], "VCell14", myData.vcell[13], 120, 35+10+10, TFT_WHITE);
+    drawValue(CS_PINS[2], "VCell15", myData.vcell[14], 120, 50+10+20, TFT_WHITE);
+    drawValue(CS_PINS[2], "VCell16", myData.vcell[15], 120, 65+10+30, TFT_WHITE);
+    drawValue(CS_PINS[2], "Temp1", myData.t[0], 120, 80+10+40, TFT_WHITE);
+    drawValue(CS_PINS[2], "Temp2", myData.t[1], 120, 95+10+50, TFT_WHITE);
+    drawValue(CS_PINS[2], "Temp3", myData.t[2], 120, 110+10+60, TFT_WHITE);
+    drawValue(CS_PINS[2], "Temp4", myData.t[3], 120, 125+10+70, TFT_WHITE);
     tft.endWrite();
     digitalWrite(CS_PINS[2], HIGH);
 }
@@ -111,7 +106,7 @@ void updateDisplay4() {
     tft.startWrite();
     tft.fillScreen(TFT_BLACK);
     drawValue(CS_PINS[4], "A", myData.a, WIDTH / 2, HEIGHT / 4, TFT_WHITE, true);
-    drawValue(CS_PINS[4], "VoltT", myData.voltT, WIDTH / 2, HEIGHT * 3 / 4, TFT_WHITE, true);
+    drawValue(CS_PINS[4], "VoltT", myData.voltT, WIDTH / 2, HEIGHT *3 / 4, TFT_WHITE, true);
     tft.endWrite();
     digitalWrite(CS_PINS[4], HIGH);
 }
