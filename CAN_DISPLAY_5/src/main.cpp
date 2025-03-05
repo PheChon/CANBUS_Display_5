@@ -7,7 +7,7 @@
 #define HEIGHT 240
 #define WIDTH  240
 #define NUM_DISPLAYS 5
-const int CS_PINS[NUM_DISPLAYS] = { 13, 33, 32, 25, 21 }; // Adjust pins as needed
+const int CS_PINS[NUM_DISPLAYS] = { 13, 33, 32, 25, 21 };
 
 TFT_eSPI tft = TFT_eSPI();
 
@@ -18,12 +18,12 @@ typedef struct struct_message {
     uint8_t data[8];
 } struct_message;
 
-// Structure for display data (reduced to only needed values)
+// Structure for display data
 typedef struct display_data {
     float vcell[16]; // Vcell1-16
-    float voltT, a;  // From 2214625280 (VoltO and A2 removed)
+    float voltT, a;  // From 2214625280
     float t[4];      // T1-T4
-    float s6;        // Only S6 (S1-S5, S7 removed)
+    float s6;        // Only S6
 } display_data;
 
 struct_message receivedMessage;
@@ -32,22 +32,20 @@ display_data lastData = {0};
 volatile bool newDataAvailable = false;
 
 // Update a single value on a display at a specific position (centered)
-void drawValue(int csPin, const char* label, float value, int x, int y, uint16_t color, bool center = false) {
+void drawValue(int csPin, const char* label, float value, int x, int y, uint16_t color, bool largeFont = false) {
     digitalWrite(csPin, LOW);
     tft.startWrite();
     tft.setTextColor(color, TFT_BLACK);
-    if (center) {
-        tft.setTextDatum(MC_DATUM); // Middle-center for Displays 4 and 5
-        char buffer[20];
-        sprintf(buffer, "%s %.2f", label, value);
-        tft.drawString(buffer, x, y);
+    tft.setTextDatum(MC_DATUM); // Middle-center for all
+    char buffer[20];
+    sprintf(buffer, "%s %.2f", label, value);
+    
+    if (largeFont) {
+        tft.setTextSize(3); // Larger font for S6, A, VoltT (18x24px)
     } else {
-        tft.setTextDatum(MC_DATUM); // Middle-center for grid layout too
-        tft.setTextSize(1);
-        char buffer[20];
-        sprintf(buffer, "%s %.2f", label, value);
-        tft.drawString(buffer, x, y);
+        tft.setTextSize(1); // Default font for grids (12x16px)
     }
+    tft.drawString(buffer, x, y);
     tft.endWrite();
     digitalWrite(csPin, HIGH);
 }
@@ -58,10 +56,10 @@ void updateDisplay0() {
     tft.startWrite();
     tft.fillScreen(TFT_BLACK);
     for (int i = 0; i < 6; i++) {
-        int x = (i % 2) * 120 + 60; // 2 columns (120px each), centered
-        int y = (i / 2) * 80 + 40;  // 3 rows (80px each), centered
+        int x = (i % 2) * 120 + 60;
+        int y = (i / 2) * 80 + 40;
         char label[8];
-        sprintf(label, "V%d", i + 1);
+        sprintf(label, "VCell%d", i + 1);
         drawValue(CS_PINS[0], label, myData.vcell[i], x, y, TFT_WHITE);
     }
     tft.endWrite();
@@ -77,7 +75,7 @@ void updateDisplay1() {
         int x = (i % 2) * 120 + 60;
         int y = (i / 2) * 80 + 40;
         char label[8];
-        sprintf(label, "V%d", i + 7);
+        sprintf(label, "VCell%d", i + 7);
         drawValue(CS_PINS[1], label, myData.vcell[i + 6], x, y, TFT_WHITE);
     }
     tft.endWrite();
@@ -91,16 +89,16 @@ void updateDisplay2() {
     tft.fillScreen(TFT_BLACK);
     for (int i = 0; i < 4; i++) {
         int x = (i % 2) * 120 + 60;
-        int y = (i / 2) * 60 + 30; // 4 rows (60px each)
+        int y = (i / 2) * 60 + 30;
         char label[8];
-        sprintf(label, "V%d", i + 13);
+        sprintf(label, "VCell%d", i + 13);
         drawValue(CS_PINS[2], label, myData.vcell[i + 12], x, y, TFT_WHITE);
     }
     for (int i = 0; i < 4; i++) {
         int x = (i % 2) * 120 + 60;
         int y = (i / 2 + 2) * 60 + 30;
         char label[4];
-        sprintf(label, "T%d", i + 1);
+        sprintf(label, "Temp%d", i + 1);
         drawValue(CS_PINS[2], label, myData.t[i], x, y, TFT_WHITE);
     }
     tft.endWrite();
@@ -120,10 +118,10 @@ void updateDisplay4() {
 
 // Update Display 5 (S6 only)
 void updateDisplay5() {
-    digitalWrite(CS_PINS[3], LOW); // Using CS_PINS[3] for Display 5
+    digitalWrite(CS_PINS[3], LOW);
     tft.startWrite();
     tft.fillScreen(TFT_BLACK);
-    drawValue(CS_PINS[3], "S6", myData.s6, WIDTH / 2, HEIGHT / 2, TFT_WHITE, true);
+    drawValue(CS_PINS[3], "SOC", myData.s6, WIDTH / 2, HEIGHT / 2, TFT_WHITE, true);
     tft.endWrite();
     digitalWrite(CS_PINS[3], HIGH);
 }
@@ -163,7 +161,6 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
             uint16_t word = (receivedMessage.data[i] << 8) | (i + 1 < receivedMessage.len ? receivedMessage.data[i + 1] : 0);
             if (i == 0) myData.voltT = (float)word / 10.0;
             else if (i == 2) myData.a = ((float)word - 30000.0) / 10.0;
-            // VoltO and A2 are skipped
         }
     }
     else if (receivedMessage.canId == 2415951872) {
@@ -176,8 +173,8 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
             if (i == 5 && i + 1 < receivedMessage.len) {
                 uint16_t byte56 = (receivedMessage.data[i] << 8) | receivedMessage.data[i + 1];
                 myData.s6 = (float)byte56 / 160.0;
-                Serial.print("S6 updated to: "); Serial.println(myData.s6); // Debug
-                break; // Only need S6
+                Serial.print("S6 updated to: "); Serial.println(myData.s6);
+                break;
             }
         }
     }
@@ -232,7 +229,7 @@ void loop() {
             memcmp(&localData.t, &lastData.t, 4 * sizeof(float)) != 0) {
             updateDisplay2();
             memcpy(&lastData.vcell[12], &localData.vcell[12], 4 * sizeof(float));
-            memcpy(&lastData.t, &localData.t, 4 * sizeof(float));
+            memcpy(&lastData.t, &lastData.t, 4 * sizeof(float));
         }
         if (localData.a != lastData.a || localData.voltT != lastData.voltT) {
             updateDisplay4();
@@ -242,7 +239,7 @@ void loop() {
         if (localData.s6 != lastData.s6) {
             updateDisplay5();
             lastData.s6 = localData.s6;
-            Serial.println("Updating Display 5 with S6"); // Debug
+            Serial.println("Updating Display 5 with S6");
         }
     }
     delay(100);

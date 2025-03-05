@@ -10,6 +10,7 @@
             "includePath": [
                 "C:/Users/user/Documents/GitHub/CANBUS_Display_5/CAN_DISPLAY_5/include",
                 "C:/Users/user/Documents/GitHub/CANBUS_Display_5/CAN_DISPLAY_5/src",
+                "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                 "C:/Users/user/Documents/GitHub/CANBUS_Display_5/CAN_DISPLAY_5/.pio/libdeps/esp32dev/TFT_eSPI",
                 "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/LittleFS/src",
                 "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/SPIFFS/src",
@@ -236,7 +237,6 @@
                 "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/USB/src",
                 "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
                 "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
-                "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                 "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                 "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
                 "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src",
@@ -247,6 +247,7 @@
                 "path": [
                     "C:/Users/user/Documents/GitHub/CANBUS_Display_5/CAN_DISPLAY_5/include",
                     "C:/Users/user/Documents/GitHub/CANBUS_Display_5/CAN_DISPLAY_5/src",
+                    "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                     "C:/Users/user/Documents/GitHub/CANBUS_Display_5/CAN_DISPLAY_5/.pio/libdeps/esp32dev/TFT_eSPI",
                     "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/LittleFS/src",
                     "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/SPIFFS/src",
@@ -473,7 +474,6 @@
                     "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/USB/src",
                     "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
                     "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
-                    "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src",
                     "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                     "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
                     "C:/Users/user/.platformio/packages/framework-arduinoespressif32/libraries/Wire/src",
