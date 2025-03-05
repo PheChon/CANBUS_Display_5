@@ -23,7 +23,7 @@ typedef struct display_data {
     float vcell[16]; // Vcell1-16
     float voltT, a;  // From 2214625280
     float t[4];      // T1-T4
-    float s6;        // Only S6
+    float s6;        // Only S6 (labeled as SOC)
 } display_data;
 
 struct_message receivedMessage;
@@ -41,23 +41,23 @@ void drawValue(int csPin, const char* label, float value, int x, int y, uint16_t
     sprintf(buffer, "%s %.2f", label, value);
     
     if (largeFont) {
-        tft.setTextSize(3); // Larger font for S6, A, VoltT (18x24px)
+        tft.setTextSize(4); // Larger font for SOC, A, VoltT (24x32px)
     } else {
-        tft.setTextSize(1); // Default font for grids (12x16px)
+        tft.setTextSize(1.5); // Smaller font for grids (6x8px)
     }
     tft.drawString(buffer, x, y);
     tft.endWrite();
     digitalWrite(csPin, HIGH);
 }
 
-// Update Display 0 (Vcell1-6, 2x3 grid)
+// Update Display 0 (Vcell1-6, single centered column)
 void updateDisplay0() {
     digitalWrite(CS_PINS[0], LOW);
     tft.startWrite();
     tft.fillScreen(TFT_BLACK);
     for (int i = 0; i < 6; i++) {
-        int x = (i % 2) * 120 + 60;
-        int y = (i / 2) * 80 + 40;
+        int x = WIDTH / 2; // Center of screen (120px)
+        int y = i * 40 + 20; // 6 rows, 40px apart, offset to fit
         char label[8];
         sprintf(label, "VCell%d", i + 1);
         drawValue(CS_PINS[0], label, myData.vcell[i], x, y, TFT_WHITE);
@@ -66,14 +66,14 @@ void updateDisplay0() {
     digitalWrite(CS_PINS[0], HIGH);
 }
 
-// Update Display 1 (Vcell7-12, 2x3 grid)
+// Update Display 1 (Vcell7-12, single centered column)
 void updateDisplay1() {
     digitalWrite(CS_PINS[1], LOW);
     tft.startWrite();
     tft.fillScreen(TFT_BLACK);
     for (int i = 0; i < 6; i++) {
-        int x = (i % 2) * 120 + 60;
-        int y = (i / 2) * 80 + 40;
+        int x = WIDTH / 2; // Center of screen (120px)
+        int y = i * 40 + 20; // 6 rows, 40px apart
         char label[8];
         sprintf(label, "VCell%d", i + 7);
         drawValue(CS_PINS[1], label, myData.vcell[i + 6], x, y, TFT_WHITE);
@@ -82,21 +82,21 @@ void updateDisplay1() {
     digitalWrite(CS_PINS[1], HIGH);
 }
 
-// Update Display 2 (Vcell13-16, T1-T4, 2x4 grid)
+// Update Display 2 (Vcell13-16, T1-T4, single centered column)
 void updateDisplay2() {
     digitalWrite(CS_PINS[2], LOW);
     tft.startWrite();
     tft.fillScreen(TFT_BLACK);
     for (int i = 0; i < 4; i++) {
-        int x = (i % 2) * 120 + 60;
-        int y = (i / 2) * 60 + 30;
+        int x = WIDTH / 2; // Center of screen (120px)
+        int y = i * 30 + 20; // 8 rows total, 30px apart
         char label[8];
         sprintf(label, "VCell%d", i + 13);
         drawValue(CS_PINS[2], label, myData.vcell[i + 12], x, y, TFT_WHITE);
     }
     for (int i = 0; i < 4; i++) {
-        int x = (i % 2) * 120 + 60;
-        int y = (i / 2 + 2) * 60 + 30;
+        int x = WIDTH / 2; // Center of screen (120px)
+        int y = (i + 4) * 30 + 20; // Offset by 4 rows
         char label[4];
         sprintf(label, "Temp%d", i + 1);
         drawValue(CS_PINS[2], label, myData.t[i], x, y, TFT_WHITE);
@@ -116,7 +116,7 @@ void updateDisplay4() {
     digitalWrite(CS_PINS[4], HIGH);
 }
 
-// Update Display 5 (S6 only)
+// Update Display 5 (S6 only, labeled as SOC)
 void updateDisplay5() {
     digitalWrite(CS_PINS[3], LOW);
     tft.startWrite();
