@@ -1,6 +1,15 @@
 #include <Arduino.h>
 #include <esp_now.h>
-#include <WiFi.h>  // Added for WiFi.mode() and WIFI_STA
+#include <WiFi.h>
+#include <SPI.h>
+#include <TFT_eSPI.h>
+
+#define HEIGHT 240
+#define WIDTH  240
+#define NUM_DISPLAYS 5
+const int CS_PINS[NUM_DISPLAYS] = { 13, 33, 32, 25, 21 }; // Adjust pins as needed
+
+TFT_eSPI tft = TFT_eSPI();
 
 // Structure for received CAN message
 typedef struct struct_message {
@@ -9,163 +18,232 @@ typedef struct struct_message {
     uint8_t data[8];
 } struct_message;
 
-struct_message receivedMessage;
+// Structure for display data (reduced to only needed values)
+typedef struct display_data {
+    float vcell[16]; // Vcell1-16
+    float voltT, a;  // From 2214625280 (VoltO and A2 removed)
+    float t[4];      // T1-T4
+    float s6;        // Only S6 (S1-S5, S7 removed)
+} display_data;
 
-// Callback function when data is received
+struct_message receivedMessage;
+volatile display_data myData = {0};
+display_data lastData = {0};
+volatile bool newDataAvailable = false;
+
+// Update a single value on a display at a specific position (centered)
+void drawValue(int csPin, const char* label, float value, int x, int y, uint16_t color, bool center = false) {
+    digitalWrite(csPin, LOW);
+    tft.startWrite();
+    tft.setTextColor(color, TFT_BLACK);
+    if (center) {
+        tft.setTextDatum(MC_DATUM); // Middle-center for Displays 4 and 5
+        char buffer[20];
+        sprintf(buffer, "%s %.2f", label, value);
+        tft.drawString(buffer, x, y);
+    } else {
+        tft.setTextDatum(MC_DATUM); // Middle-center for grid layout too
+        tft.setTextSize(1);
+        char buffer[20];
+        sprintf(buffer, "%s %.2f", label, value);
+        tft.drawString(buffer, x, y);
+    }
+    tft.endWrite();
+    digitalWrite(csPin, HIGH);
+}
+
+// Update Display 0 (Vcell1-6, 2x3 grid)
+void updateDisplay0() {
+    digitalWrite(CS_PINS[0], LOW);
+    tft.startWrite();
+    tft.fillScreen(TFT_BLACK);
+    for (int i = 0; i < 6; i++) {
+        int x = (i % 2) * 120 + 60; // 2 columns (120px each), centered
+        int y = (i / 2) * 80 + 40;  // 3 rows (80px each), centered
+        char label[8];
+        sprintf(label, "V%d", i + 1);
+        drawValue(CS_PINS[0], label, myData.vcell[i], x, y, TFT_WHITE);
+    }
+    tft.endWrite();
+    digitalWrite(CS_PINS[0], HIGH);
+}
+
+// Update Display 1 (Vcell7-12, 2x3 grid)
+void updateDisplay1() {
+    digitalWrite(CS_PINS[1], LOW);
+    tft.startWrite();
+    tft.fillScreen(TFT_BLACK);
+    for (int i = 0; i < 6; i++) {
+        int x = (i % 2) * 120 + 60;
+        int y = (i / 2) * 80 + 40;
+        char label[8];
+        sprintf(label, "V%d", i + 7);
+        drawValue(CS_PINS[1], label, myData.vcell[i + 6], x, y, TFT_WHITE);
+    }
+    tft.endWrite();
+    digitalWrite(CS_PINS[1], HIGH);
+}
+
+// Update Display 2 (Vcell13-16, T1-T4, 2x4 grid)
+void updateDisplay2() {
+    digitalWrite(CS_PINS[2], LOW);
+    tft.startWrite();
+    tft.fillScreen(TFT_BLACK);
+    for (int i = 0; i < 4; i++) {
+        int x = (i % 2) * 120 + 60;
+        int y = (i / 2) * 60 + 30; // 4 rows (60px each)
+        char label[8];
+        sprintf(label, "V%d", i + 13);
+        drawValue(CS_PINS[2], label, myData.vcell[i + 12], x, y, TFT_WHITE);
+    }
+    for (int i = 0; i < 4; i++) {
+        int x = (i % 2) * 120 + 60;
+        int y = (i / 2 + 2) * 60 + 30;
+        char label[4];
+        sprintf(label, "T%d", i + 1);
+        drawValue(CS_PINS[2], label, myData.t[i], x, y, TFT_WHITE);
+    }
+    tft.endWrite();
+    digitalWrite(CS_PINS[2], HIGH);
+}
+
+// Update Display 4 (A, VoltT, vertical split)
+void updateDisplay4() {
+    digitalWrite(CS_PINS[4], LOW);
+    tft.startWrite();
+    tft.fillScreen(TFT_BLACK);
+    drawValue(CS_PINS[4], "A", myData.a, WIDTH / 2, HEIGHT / 4, TFT_WHITE, true);
+    drawValue(CS_PINS[4], "VoltT", myData.voltT, WIDTH / 2, HEIGHT * 3 / 4, TFT_WHITE, true);
+    tft.endWrite();
+    digitalWrite(CS_PINS[4], HIGH);
+}
+
+// Update Display 5 (S6 only)
+void updateDisplay5() {
+    digitalWrite(CS_PINS[3], LOW); // Using CS_PINS[3] for Display 5
+    tft.startWrite();
+    tft.fillScreen(TFT_BLACK);
+    drawValue(CS_PINS[3], "S6", myData.s6, WIDTH / 2, HEIGHT / 2, TFT_WHITE, true);
+    tft.endWrite();
+    digitalWrite(CS_PINS[3], HIGH);
+}
+
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
     memcpy(&receivedMessage, incomingData, sizeof(receivedMessage));
     
-    Serial.print("Received CAN ID: ");
-    Serial.print(receivedMessage.canId);
-    Serial.print("|Length:");
-    Serial.print(receivedMessage.len);
+    Serial.print("CAN ID: "); Serial.print(receivedMessage.canId);
+    Serial.print(" | Len: "); Serial.println(receivedMessage.len);
 
-    // Buffer to store formatted data
-    char payload[256];
-    String dataString = "";
-
-    // Process data and create JSON string based on CAN ID
     if (receivedMessage.canId == 2281734144) {
-        dataString = "{";
         for (int i = 0; i < receivedMessage.len; i += 2) {
             uint16_t word = (receivedMessage.data[i] << 8) | (i + 1 < receivedMessage.len ? receivedMessage.data[i + 1] : 0);
-            float decimalValue = (float)word / 1000.0;
-            char dec[10];
-            sprintf(dec, "%.3f", decimalValue);
-            if (i == 0) dataString += "\"Vcell1\": " + String(dec);
-            else if (i == 2) dataString += ", \"Vcell2\": " + String(dec);
-            else if (i == 4) dataString += ", \"Vcell3\": " + String(dec);
-            else if (i == 6) dataString += ", \"Vcell4\": " + String(dec);
+            myData.vcell[i / 2] = (float)word / 1000.0;
         }
-        dataString += "}";
     }
     else if (receivedMessage.canId == 2281799680) {
-        dataString = "{";
         for (int i = 0; i < receivedMessage.len; i += 2) {
             uint16_t word = (receivedMessage.data[i] << 8) | (i + 1 < receivedMessage.len ? receivedMessage.data[i + 1] : 0);
-            float decimalValue = (float)word / 1000.0;
-            char dec[10];
-            sprintf(dec, "%.3f", decimalValue);
-            if (i == 0) dataString += "\"Vcell5\": " + String(dec);
-            else if (i == 2) dataString += ", \"Vcell6\": " + String(dec);
-            else if (i == 4) dataString += ", \"Vcell7\": " + String(dec);
-            else if (i == 6) dataString += ", \"Vcell8\": " + String(dec);
+            myData.vcell[i / 2 + 4] = (float)word / 1000.0;
         }
-        dataString += "}";
     }
     else if (receivedMessage.canId == 2281865216) {
-        dataString = "{";
         for (int i = 0; i < receivedMessage.len; i += 2) {
             uint16_t word = (receivedMessage.data[i] << 8) | (i + 1 < receivedMessage.len ? receivedMessage.data[i + 1] : 0);
-            float decimalValue = (float)word / 1000.0;
-            char dec[10];
-            sprintf(dec, "%.3f", decimalValue);
-            if (i == 0) dataString += "\"Vcell9\": " + String(dec);
-            else if (i == 2) dataString += ", \"Vcell10\": " + String(dec);
-            else if (i == 4) dataString += ", \"Vcell11\": " + String(dec);
-            else if (i == 6) dataString += ", \"Vcell12\": " + String(dec);
+            myData.vcell[i / 2 + 8] = (float)word / 1000.0;
         }
-        dataString += "}";
     }
     else if (receivedMessage.canId == 2281930752) {
-        dataString = "{";
         for (int i = 0; i < receivedMessage.len; i += 2) {
             uint16_t word = (receivedMessage.data[i] << 8) | (i + 1 < receivedMessage.len ? receivedMessage.data[i + 1] : 0);
-            float decimalValue = (float)word / 1000.0;
-            char dec[10];
-            sprintf(dec, "%.3f", decimalValue);
-            if (i == 0) dataString += "\"Vcell13\": " + String(dec);
-            else if (i == 2) dataString += ", \"Vcell14\": " + String(dec);
-            else if (i == 4) dataString += ", \"Vcell15\": " + String(dec);
-            else if (i == 6) dataString += ", \"Vcell16\": " + String(dec);
+            myData.vcell[i / 2 + 12] = (float)word / 1000.0;
         }
-        dataString += "}";
     }
     else if (receivedMessage.canId == 2214625280) {
-        dataString = "{";
         for (int i = 0; i < receivedMessage.len; i += 2) {
             uint16_t word = (receivedMessage.data[i] << 8) | (i + 1 < receivedMessage.len ? receivedMessage.data[i + 1] : 0);
-            float decimalValue;
-            if (i == 0 || i == 4) {
-                decimalValue = (float)word / 10.0;
-            } else {
-                decimalValue = ((float)word - 30000.0) / 10.0;
-            }
-            char dec[10];
-            sprintf(dec, "%.3f", decimalValue);
-            if (i == 0) dataString += "\"VoltT\": " + String(dec);
-            else if (i == 2) dataString += ", \"A\": " + String(dec);
-            else if (i == 4) dataString += ", \"VoltO\": " + String(dec);
-            else if (i == 6) dataString += ", \"A2\": " + String(dec);
+            if (i == 0) myData.voltT = (float)word / 10.0;
+            else if (i == 2) myData.a = ((float)word - 30000.0) / 10.0;
+            // VoltO and A2 are skipped
         }
-        dataString += "}";
     }
     else if (receivedMessage.canId == 2415951872) {
-        dataString = "{";
         for (int i = 0; i < min((int)4, (int)receivedMessage.len); i++) {
-            int decimalValue = receivedMessage.data[i] - 40;
-            char dec[10];
-            sprintf(dec, "%d", decimalValue);
-            if (i == 0) dataString += "\"T1\": " + String(dec);
-            else if (i == 1) dataString += ", \"T2\": " + String(dec);
-            else if (i == 2) dataString += ", \"T3\": " + String(dec);
-            else if (i == 3) dataString += ", \"T4\": " + String(dec);
+            myData.t[i] = (float)(receivedMessage.data[i] - 40);
         }
-        dataString += "}";
     }
-    else if (receivedMessage.canId == 2214756352) { // 84028000 in decimal
-        dataString = "{";
+    else if (receivedMessage.canId == 2214756352) {
         for (int i = 0; i < receivedMessage.len; i++) {
-            float decimalValue;
             if (i == 5 && i + 1 < receivedMessage.len) {
                 uint16_t byte56 = (receivedMessage.data[i] << 8) | receivedMessage.data[i + 1];
-                decimalValue = (float)byte56 / 160.0;
-                i++; // Skip the next byte
-            } else {
-                decimalValue = (float)receivedMessage.data[i] / 160.0;
+                myData.s6 = (float)byte56 / 160.0;
+                Serial.print("S6 updated to: "); Serial.println(myData.s6); // Debug
+                break; // Only need S6
             }
-            char dec[10];
-            sprintf(dec, "%.3f", decimalValue);
-            if (i == 0) dataString += "\"S1\": " + String(dec);
-            else if (i == 1) dataString += ", \"S2\": " + String(dec);
-            else if (i == 2) dataString += ", \"S3\": " + String(dec);
-            else if (i == 3) dataString += ", \"S4\": " + String(dec);
-            else if (i == 4) dataString += ", \"S5\": " + String(dec);
-            else if (i == 5) dataString += ", \"S6\": " + String(dec);
-            else if (i == 6) dataString += ", \"S7\": " + String(dec);
         }
-        dataString += "}";
     }
-    else {
-        dataString = "{}"; // Empty JSON object for unhandled CAN IDs
-    }
-
-    // Print to Serial (for debugging)
-    Serial.println(dataString);
+    newDataAvailable = true;
 }
 
 void setup() {
     Serial.begin(115200);
-    while (!Serial) {
-        ; // Wait for Serial to initialize
-    }
-    Serial.println("WT32-ETH01 ESP-NOW Receiver");
+    while (!Serial) { ; }
 
-    // Initialize ESP-NOW
-    WiFi.mode(WIFI_STA);  // Set to Station mode for ESP-NOW
+    tft.begin();
+    tft.setRotation(0);
+    for (int i = 0; i < NUM_DISPLAYS; i++) {
+        pinMode(CS_PINS[i], OUTPUT);
+        digitalWrite(CS_PINS[i], HIGH);
+        digitalWrite(CS_PINS[i], LOW);
+        tft.startWrite();
+        tft.fillScreen(TFT_BLACK);
+        tft.endWrite();
+        digitalWrite(CS_PINS[i], HIGH);
+    }
+
+    WiFi.mode(WIFI_STA);
     if (esp_now_init() != ESP_OK) {
         Serial.println("Error initializing ESP-NOW");
         while (1) delay(100);
     }
-
-    // Register callback for receiving data
     esp_now_register_recv_cb(OnDataRecv);
 
-    Serial.println("Receiver Ready");
+    Serial.println("WT32-ETH01 ESP-NOW Receiver with TFT");
     Serial.print("MAC Address: ");
     Serial.println(WiFi.macAddress());
 }
 
 void loop() {
-    delay(100);  // Small delay to prevent watchdog issues
+    if (newDataAvailable) {
+        noInterrupts();
+        display_data localData;
+        memcpy(&localData, (void*)&myData, sizeof(display_data));
+        newDataAvailable = false;
+        interrupts();
+
+        if (memcmp(&localData.vcell[0], &lastData.vcell[0], 6 * sizeof(float)) != 0) {
+            updateDisplay0();
+            memcpy(&lastData.vcell[0], &localData.vcell[0], 6 * sizeof(float));
+        }
+        if (memcmp(&localData.vcell[6], &lastData.vcell[6], 6 * sizeof(float)) != 0) {
+            updateDisplay1();
+            memcpy(&lastData.vcell[6], &localData.vcell[6], 6 * sizeof(float));
+        }
+        if (memcmp(&localData.vcell[12], &lastData.vcell[12], 4 * sizeof(float)) != 0 || 
+            memcmp(&localData.t, &lastData.t, 4 * sizeof(float)) != 0) {
+            updateDisplay2();
+            memcpy(&lastData.vcell[12], &localData.vcell[12], 4 * sizeof(float));
+            memcpy(&lastData.t, &localData.t, 4 * sizeof(float));
+        }
+        if (localData.a != lastData.a || localData.voltT != lastData.voltT) {
+            updateDisplay4();
+            lastData.a = localData.a;
+            lastData.voltT = localData.voltT;
+        }
+        if (localData.s6 != lastData.s6) {
+            updateDisplay5();
+            lastData.s6 = localData.s6;
+            Serial.println("Updating Display 5 with S6"); // Debug
+        }
+    }
+    delay(100);
 }
